@@ -1,0 +1,36 @@
+# Runs the Nadbell keeper + maker bot every 5 minutes on GitHub's free runners.
+# Repo settings -> Secrets and variables -> Actions -> add:
+#   KEEPER_PK       private key of a testnet-only wallet (the one that deployed, or the KEEPER_ADDRESS)
+#   ALPACA_KEY_ID   free Alpaca paper-trading API key id
+#   ALPACA_SECRET   its secret
+# GitHub may delay scheduled runs by several minutes; the contract keeps a price "fresh" for 30 min.
+name: keeper
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: keeper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci || npm install
+      - run: node keeper.mjs
+        env:
+          CHAIN_ID: "10143"
+          KEEPER_PK: ${{ secrets.KEEPER_PK }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
