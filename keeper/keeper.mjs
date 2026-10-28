@@ -57,6 +57,15 @@ const read = (contract, functionName, args = []) =>
   pub.readContract({ address: addr[contract], abi: abis[nameOf[contract]], functionName, args });
 const nameOf = { usdc: "MockUSDC", stock: "StockToken", gate: "PriceGate", vault: "Vault", book: "OrderBook", openCall: "OpenCall" };
 
+const FAUCET = "https://faucet.monad.xyz";
+// Below this the maker bot stands down so the remaining MON goes to price pushes and the bell.
+// A full re-quote costs ~0.1-0.2 MON on Monad testnet.
+const MAKER_MIN_WEI = BigInt(Math.round(Number(env.MAKER_MIN_MON ?? 0.5) * 1e18));
+const fmtMon = (wei) => (Number(wei) / 1e18).toFixed(4);
+// GitHub Actions turns these into annotations on the run summary.
+const ghWarn = (msg) => console.log(`${env.GITHUB_ACTIONS ? "::warning::" : "WARNING: "}${msg}`);
+class LowBalanceError extends Error {}
+
 let sent = 0;
 async function write(contract, functionName, args = []) {
   const req = { address: addr[contract], abi: abis[nameOf[contract]], functionName, args, account };
@@ -64,9 +73,20 @@ async function write(contract, functionName, args = []) {
     log(`[dry-run] ${contract}.${functionName}(${args.join(", ")})`);
     return;
   }
-  const gas = await pub.estimateContractGas(req);
+  const [est, fees, bal] = await Promise.all([
+    pub.estimateContractGas(req),
+    pub.estimateFeesPerGas(),
+    pub.getBalance({ address: account.address }),
+  ]);
   // Monad bills the gas limit, not gas used: keep it tight.
-  const hash = await wallet.writeContract({ ...req, chain, gas: (gas * 120n) / 100n });
+  const gas = (est * 120n) / 100n;
+  const cost = gas * fees.maxFeePerGas;
+  if (bal < cost) {
+    throw new LowBalanceError(
+      `${contract}.${functionName} needs ~${fmtMon(cost)} MON for gas, keeper has ${fmtMon(bal)} MON`,
+    );
+  }
+  const hash = await wallet.writeContract({ ...req, chain, gas, ...fees });
   const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`${contract}.${functionName} reverted (${hash})`);
   sent++;
@@ -235,12 +255,36 @@ async function runMaker(open) {
 
 try {
   log(`nadbell keeper on chain ${CHAIN_ID} as ${account.address}${DRY ? " (dry run)" : ""}`);
+  // The price feed and the bell come first; they are what the app depends on.
   const { open, skipped } = await runKeeper();
-  if (MAKER && !skipped) await runMaker(open);
+
+  if (MAKER && !skipped) {
+    const bal = DRY ? MAKER_MIN_WEI : await pub.getBalance({ address: account.address });
+    if (bal < MAKER_MIN_WEI) {
+      ghWarn(
+        `maker skipped: keeper has ${fmtMon(bal)} MON (< ${fmtMon(MAKER_MIN_WEI)}). ` +
+          `Top up ${account.address} at ${FAUCET}`,
+      );
+    } else {
+      try {
+        await runMaker(open);
+      } catch (e) {
+        // Quotes are a nice-to-have; running dry mid re-quote shouldn't fail the price keeper.
+        if (!(e instanceof LowBalanceError)) throw e;
+        ghWarn(`maker stopped: ${e.message}. Top up ${account.address} at ${FAUCET}`);
+      }
+    }
+  }
+
   const mon = await pub.getBalance({ address: account.address });
-  log(`done: ${sent} tx sent; keeper balance ${(Number(mon) / 1e18).toFixed(3)} MON`);
-  if (mon < 10n ** 18n) log("WARNING: keeper is low on MON. Top it up from https://faucet.monad.xyz");
+  log(`done: ${sent} tx sent; keeper balance ${fmtMon(mon)} MON`);
+  if (mon < 10n ** 18n) ghWarn(`keeper is low on MON (${fmtMon(mon)}). Top up ${account.address} at ${FAUCET}`);
 } catch (e) {
-  console.error(e);
+  if (e instanceof LowBalanceError) {
+    // The keeper itself couldn't push or close: fail the run so it's visible.
+    console.log(`::error::keeper out of gas: ${e.message}. Top up ${account.address} at ${FAUCET}`);
+  } else {
+    console.error(e);
+  }
   process.exit(1);
 }
