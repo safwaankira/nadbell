@@ -9,8 +9,8 @@ function feedStatus(snap: Snapshot, now: number): Feed {
   const age = now / 1000 - snap.print.time;
   if (snap.marketOpen) {
     return snap.print.fresh
-      ? { tone: "live", text: `Live · updated ${ago(age)} ago` }
-      : { tone: "late", text: `Late · last price ${ago(age)} ago` };
+      ? { tone: "live", text: `Live, updated ${ago(age)} ago` }
+      : { tone: "late", text: `Late, last price ${ago(age)} ago` };
   }
   // NYSE is trading but the keeper hasn't relayed a price since the close.
   if (isRegularOpen(new Date(now))) return { tone: "late", text: "Waiting for the keeper" };
@@ -18,53 +18,106 @@ function feedStatus(snap: Snapshot, now: number): Feed {
 }
 
 const BADGE: Record<Feed["tone"], string> = {
-  live: "border-primary/60 text-primary",
+  live: "border-primary/60 text-up",
   late: "border-warn/60 text-warn",
   frozen: "border-border text-muted",
 };
 
-export function StatusBanner({ snap, now, mid, gapBps }: { snap: Snapshot | null; now: number; mid: number; gapBps: number }) {
-  if (!snap) {
-    return <div className="mt-5 rounded-xl border border-border bg-surface px-4 py-4 text-sm text-muted">Reading the market…</div>;
-  }
-  const open = snap.marketOpen;
-  const feed = feedStatus(snap, now);
+/**
+ * The payoff, first: the oracle's frozen price next to the price this book is trading at,
+ * with the gap between them. That gap is the whole idea of Nadbell.
+ */
+export function StatusBanner({
+  snap,
+  now,
+  mid,
+  gapBps,
+}: {
+  snap: Snapshot | null;
+  now: number;
+  mid: number;
+  gapBps: number;
+}) {
+  const open = snap?.marketOpen ?? false;
+  const feed = snap ? feedStatus(snap, now) : null;
   const nOpen = nextOpen(new Date(now));
   const nClose = nextClose(new Date(now));
+  const oracle = snap ? (open ? snap.print.cents : snap.closeCents) : 0;
+
   return (
-    <div className={`mt-5 rounded-xl border px-4 py-4 ${open ? "border-primary/50 bg-primary/10" : "border-down/50 bg-down/10"}`} role="status">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="flex flex-wrap items-center gap-2 text-lg font-medium">
-          {open ? "Market open" : "Market closed"}
-          <span className="font-mono text-base text-muted">tAAPL</span>
-          <span className={`rounded-full border px-2 py-0.5 font-mono text-xs font-normal ${BADGE[feed.tone]}`}>
-            {feed.tone === "live" ? <span className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-primary align-middle" /> : null}
-            {feed.text}
+    <section className="mt-12" aria-labelledby="hero-title" role="status">
+      <p className="caption-4 flex flex-wrap items-center gap-2 text-muted">
+        <span className={open ? "text-up" : "text-fg"}>
+          {snap ? (open ? "NYSE open" : "NYSE closed") : "Reading the market…"}
+        </span>
+        {snap && !open && nOpen ? (
+          <span>
+            Reopens {nyWhen(nOpen)}, in {until(nOpen.getTime() - now)}
           </span>
-        </p>
-        <p className="font-mono text-2xl">{usd(mid)}</p>
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {open ? (
-          <>
-            Official price {usd(snap.print.cents)} from {snap.print.label}.
-            {nClose ? ` Closes ${nyWhen(nClose)}.` : ""}
-            {!snap.print.fresh ? " The price feed is late, so minting is paused." : ""}
-          </>
-        ) : feed.tone === "late" ? (
-          <>
-            The real market is trading, but this one still shows the last close, {usd(snap.closeCents)}, until the keeper
-            relays a new price. You can trade here meanwhile: this market is{" "}
-            <span className={gapBps >= 0 ? "text-primary" : "text-down"}>{pct(gapBps, true)}</span> from the close.
-          </>
-        ) : (
-          <>
-            Frozen at {usd(snap.closeCents)} since the close. You can still trade here: this market is{" "}
-            <span className={gapBps >= 0 ? "text-primary" : "text-down"}>{pct(gapBps, true)}</span> from the close.
-            {nOpen ? ` Reopens ${nyWhen(nOpen)}, in ${until(nOpen.getTime() - now)}.` : ""}
-          </>
-        )}
+        ) : null}
+        {snap && open && nClose ? <span>Closes {nyWhen(nClose)}</span> : null}
       </p>
-    </div>
+      <h1 id="hero-title" className="heading-3 mt-3 max-w-[680px]">
+        Trade tAAPL after
+        <br />
+        the closing bell
+      </h1>
+      <p className="body-3 mt-3 max-w-[680px] text-muted">
+        At the NYSE close the oracle freezes. This onchain order book keeps trading, so its price
+        shows where AAPL might reopen.
+      </p>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-surface p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="title-4 text-muted">{open ? "Official price" : "Oracle price"}</p>
+            {feed ? (
+              <span
+                className={`caption-4 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 ${BADGE[feed.tone]}`}
+              >
+                {feed.tone === "live" ? (
+                  <span className="size-1.5 animate-pulse rounded-full bg-up" aria-hidden="true" />
+                ) : null}
+                {feed.text}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-3 font-mono text-5xl leading-none font-medium tracking-tight">
+            {snap ? usd(oracle) : "…"}
+          </p>
+          <p className="caption-5 mt-3 text-muted">
+            {snap ? (open ? `From ${snap.print.label}` : `Last relayed price at the close`) : " "}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-primary/60 bg-surface p-6">
+          <p className="title-4 text-muted">Nadbell price</p>
+          <p className="mt-3 font-mono text-5xl leading-none font-medium tracking-tight">
+            {snap ? usd(mid) : "…"}
+          </p>
+          <p className="caption-5 mt-3 text-muted">
+            {snap ? (
+              <>
+                <span className={`font-mono ${gapBps >= 0 ? "text-up" : "text-down"}`}>
+                  {pct(gapBps, true)}
+                </span>{" "}
+                vs the {open ? "official price" : "close"}
+              </>
+            ) : (
+              " "
+            )}
+          </p>
+        </div>
+      </div>
+
+      {snap && open && !snap.print.fresh ? (
+        <p className="body-6 mt-3 text-warn">The price feed is late, so minting is paused.</p>
+      ) : null}
+      {snap && !open && feed?.tone === "late" ? (
+        <p className="body-6 mt-3 text-warn">
+          NYSE is trading, but the keeper hasn't relayed a new price yet.
+        </p>
+      ) : null}
+    </section>
   );
 }

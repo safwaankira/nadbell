@@ -13,7 +13,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
       { name: "description", content: DESCRIPTION },
-      { name: "theme-color", content: "#0E091C" },
+      { name: "theme-color", content: "#000000" },
       // Share cards (X, Discord, iMessage). og:image must be an absolute URL.
       { property: "og:type", content: "website" },
       { property: "og:url", content: SITE_URL },
