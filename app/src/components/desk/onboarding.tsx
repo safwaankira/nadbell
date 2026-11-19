@@ -58,7 +58,8 @@ export function Onboarding({ snap, account, busy }: { snap: Snapshot | null; acc
               {s.title}
             </p>
             <p className="text-xs text-muted">{s.body}</p>
-            {!s.done && i === current ? <div className="mt-auto">{s.action}</div> : null}
+            {/* The faucet needs no connection, so offer it from the start rather than waiting for step 1. */}
+            {!s.done && (i === current || s.title === "Get test MON for gas") ? <div className="mt-auto">{s.action}</div> : null}
           </li>
         ))}
       </ol>
