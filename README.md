@@ -27,7 +27,7 @@ Limit orders, mint/redeem and an explainer live under **Advanced**.
 | `StockToken` (tAAPL) | ERC-20 with a display multiplier for dividends/splits (ERC-8056 draft, as used by Robinhood Stock Tokens). |
 | `MockUSDC` (tUSDC) | Faucet dollar. |
 | Trusted spenders | On testnet, tUSDC/tAAPL let Nadbell's own vault and book move funds without `approve()`, so every action is one confirmation. Never do this with real-value tokens. |
-| Keeper + maker bot (`keeper/`) | Runs every 5 minutes on GitHub Actions. Uses Alpaca's market clock (falls back to a built-in NYSE calendar with 2026–27 holidays), pushes Alpaca's latest IEX trade while open, rings the bell after close. The maker keeps two buy and two sell quotes on the book: tight around the official price while open, wider around the last trade while closed so users move the weekend price. It only re-quotes when quotes drift >0.15% (open) / 0.30% (closed) or get filled. |
+| Keeper + maker bot (`keeper/`) | Scheduled every 5 minutes on GitHub Actions (GitHub runs it far less often in practice, see Known limits). Uses Alpaca's market clock (falls back to a built-in NYSE calendar with 2026–27 holidays), pushes Alpaca's latest IEX trade while open, rings the bell after close. The maker keeps two buy and two sell quotes on the book: tight around the official price while open, wider around the last trade while closed so users move the weekend price. It only re-quotes when quotes drift >0.15% (open) / 0.30% (closed) or get filled. |
 
 Why a keeper and not an oracle: as of October 2026 there is no free US-equity oracle on Monad testnet. Pyth Hermes needs a paid key since Aug 26, 2026 and moved extended hours to paid Pyth Pro; Chainlink ended its Data Streams free tier on Sept 1, 2026. The keeper is honest about it: the app names the source and shows how old the price is.
 
@@ -36,8 +36,8 @@ Why a keeper and not an oracle: as of October 2026 there is no free US-equity or
 ```
 contracts/          Foundry project (src, test, script)
 keeper/             keeper + maker bot (Node, viem)
-app/                web app (TanStack Start + React + viem), started in Grok's app builder
-.github/workflows/  keeper.yml: runs the keeper every 5 minutes
+app/                web app (TanStack Start + React + viem); UI in src/components/desk/, chain reads in src/lib/chain/
+.github/workflows/  keeper.yml: the keeper schedule · ci.yml: contract, app and keeper checks on every push
 ```
 
 ## Setup
@@ -82,11 +82,13 @@ cd app
 npm run dev                  # http://localhost:8080, reads Monad testnet by default
 ```
 
-Deploy it like any Vite app (it was built in Grok's app builder and ships with Vercel output config). Local chain: run `anvil`, deploy with `--rpc-url http://127.0.0.1:8545`, sync, then `VITE_CHAIN_ID=31337 npm run dev`. `VITE_DEV_PK` signs with a local burner key; never set it on a public deploy.
+Vercel deploys `main` automatically; `npm run build` writes Vercel output, including the security headers (CSP, HSTS, nosniff, frame-ancestors) from `vite.config.ts`. Run `npm run typecheck && npm run lint && npm test` before pushing; CI runs the same plus `forge test`. Local chain: run `anvil`, deploy with `--rpc-url http://127.0.0.1:8545`, sync, then `VITE_CHAIN_ID=31337 npm run dev`. `VITE_DEV_PK` signs with a local burner key; never set it on a public deploy.
 
 The deployer wallet sees **Keeper controls** under Advanced (push a price, ring the bell) for testing without waiting for the schedule.
 
 ## Known limits
+
+- GitHub delays and drops scheduled workflows on free runners. In Nov 2026 the 5-minute keeper actually ran about 3 times a day, so during NYSE hours the price is often stale. The app shows this with a Late badge and pauses minting.
 
 - One stock, one book. Every order touches the same storage, so Monad's parallel execution doesn't speed this book up.
 - The price comes from IEX, about 2.5% of US volume, relayed by one keeper. It's a showcase, not an oracle.

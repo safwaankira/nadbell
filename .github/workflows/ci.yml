@@ -1,0 +1,72 @@
+# Checks every push to main and every pull request. Vercel deploys main on its own,
+# so a red run here is the signal that something broken just shipped.
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  pull_request:
+    paths-ignore: ["**.md"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge test
+
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      # The CSP must stay in the Vercel route config, ahead of the SSR route.
+      - run: node -e "const r=require('./.vercel/output/config.json').routes; if(!r[0].headers?.['content-security-policy']||!r[0].continue) process.exit(1)"
+
+  keeper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: keeper
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: keeper/package-lock.json
+      - run: npm ci
+      - run: node --check keeper.mjs && node --check nyse.mjs
