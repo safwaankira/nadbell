@@ -14,10 +14,7 @@ export function PriceChart({ snap, refCents, mid, up }: { snap: Snapshot | null;
 
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-sm font-medium">Trades here vs the {snap?.marketOpen ? "official price" : "close"}</h2>
-        <span className="font-mono text-xs text-muted">dashed = {snap?.marketOpen ? "official" : "close"}</span>
-      </div>
+      <h2 className="mb-2 text-sm font-medium">Trades here vs the {snap?.marketOpen ? "official price" : "close"}</h2>
       <div className="h-44">
         {on && snap ? (
           <ResponsiveContainer width="100%" height="100%">
@@ -30,7 +27,12 @@ export function PriceChart({ snap, refCents, mid, up }: { snap: Snapshot | null;
                 stroke="#a99bc4"
                 tick={{ fill: "#a99bc4", fontSize: 11 }}
               />
-              <ReferenceLine y={refCents} stroke="#a99bc4" strokeDasharray="4 4" />
+              <ReferenceLine
+                y={refCents}
+                stroke="#a99bc4"
+                strokeDasharray="4 4"
+                label={{ value: snap.marketOpen ? "Official" : "Close", position: "insideTopLeft", fill: "#a99bc4", fontSize: 11 }}
+              />
               <Line type="stepAfter" dataKey="px" stroke={up ? "#6E54FF" : "#A0055D"} strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>

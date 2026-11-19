@@ -66,7 +66,7 @@ export function TradeBox({ snap, busy, connected }: { snap: Snapshot | null; bus
               ? `≈ ${fmtShares(buyEst.lots)} tAAPL at ${usd(Math.round(buyEst.avg))} each`
               : snap && !snap.asks.length
                 ? "Nobody is selling right now."
-                : "Enter an amount."}
+                : " "}
           </p>
         </>
       ) : (
@@ -91,7 +91,7 @@ export function TradeBox({ snap, busy, connected }: { snap: Snapshot | null; bus
               ? `≈ ${money(sellEst.dollars)} for ${fmtShares(sellEst.lots)} tAAPL${sellEst.lots < sellLots ? " (the rest stays with you)" : ""}`
               : snap && !snap.bids.length
                 ? "Nobody is buying right now."
-                : "Enter how many shares."}
+                : " "}
           </p>
         </>
       )}
@@ -104,7 +104,7 @@ export function TradeBox({ snap, busy, connected }: { snap: Snapshot | null; bus
       >
         {busy ? `${busy}…` : !connected ? "Connect a wallet to trade" : tooMuch ? "Not enough balance" : side === "buy" ? "Buy tAAPL" : "Sell tAAPL"}
       </button>
-      <p className="mt-2 text-xs text-muted">Fills right away at the best prices, never more than 1% past the top of the book. Anything unfilled comes straight back.</p>
+      <p className="mt-2 text-xs text-muted">Fills at the best prices, never more than 1% past the top of the book. Anything unfilled comes back to you.</p>
 
       {snap?.me ? (
         <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3 font-mono text-sm">

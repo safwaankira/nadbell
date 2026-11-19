@@ -13,7 +13,7 @@ function feedStatus(snap: Snapshot, now: number): Feed {
       : { tone: "late", text: `Late · last price ${ago(age)} ago` };
   }
   // NYSE is trading but the keeper hasn't relayed a price since the close.
-  if (isRegularOpen(new Date(now))) return { tone: "late", text: "NYSE is open · waiting for the keeper" };
+  if (isRegularOpen(new Date(now))) return { tone: "late", text: "Waiting for the keeper" };
   return { tone: "frozen", text: "Frozen at the close" };
 }
 

@@ -28,7 +28,7 @@ export function Advanced({ snap, busy, connected, isIssuer }: { snap: Snapshot |
           }}
         >
           <h3 className="text-sm font-medium">Limit order</h3>
-          <p className="mt-1 text-xs text-muted">Name your price. Whatever doesn't match waits on the book until filled or cancelled.</p>
+          <p className="mt-1 text-xs text-muted">Whatever doesn't match waits on the book until filled or cancelled.</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {(["buy", "sell"] as const).map((s) => (
               <button
