@@ -5,6 +5,9 @@ export function BookPanel({ snap, now }: { snap: Snapshot | null; now: number })
   const asks = (snap?.asks ?? []).slice(0, 4).reverse();
   const bids = (snap?.bids ?? []).slice(0, 4);
   const max = Math.max(1, ...asks.map((r) => r.lots), ...bids.map((r) => r.lots));
+  const last = snap?.trades[0];
+  // A last trade weeks ago reads as "dead market"; say plainly that the next trade sets the price instead.
+  const quiet = !!snap && (!last || now / 1000 - last.time > 86_400);
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-sm font-medium">Order book</h2>
@@ -14,6 +17,12 @@ export function BookPanel({ snap, now }: { snap: Snapshot | null; now: number })
         <div className="my-1 border-t border-border" />
         <BookRows rows={bids} max={max} tone="up" />
       </div>
+      {quiet ? (
+        <p className="mt-4 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
+          {last ? `Quiet here: the last trade was ${ago(now / 1000 - last.time)} ago.` : "No trades yet."} Your trade sets
+          the next price on the chart.
+        </p>
+      ) : null}
       <h3 className="mt-4 text-xs text-muted">Latest trades</h3>
       <ul className="mt-1 font-mono text-xs">
         {(snap?.trades ?? []).slice(0, 5).map((t, i) => (
@@ -23,7 +32,6 @@ export function BookPanel({ snap, now }: { snap: Snapshot | null; now: number })
             <span className="text-muted">{ago(now / 1000 - t.time)} ago</span>
           </li>
         ))}
-        {snap && snap.trades.length === 0 ? <li className="text-muted">No trades yet.</li> : null}
       </ul>
     </div>
   );
