@@ -13,7 +13,14 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { create } from "zustand";
 import { addresses, chain, devKey, rpcUrl, txUrl } from "./config";
-import { MockUSDCAbi, OpenCallAbi, OrderBookAbi, PriceGateAbi, StockTokenAbi, VaultAbi } from "./generated";
+import {
+  MockUSDCAbi,
+  OpenCallAbi,
+  OrderBookAbi,
+  PriceGateAbi,
+  StockTokenAbi,
+  VaultAbi,
+} from "./generated";
 
 // Batch every read made in the same tick into one Multicall3 request (where the chain has it),
 // and retry transient failures. Monad's public RPC rate-limits bursts of separate calls.
@@ -30,7 +37,13 @@ export type Side = "buy" | "sell";
 export type Level = { price: number; lots: number };
 export type Trade = { price: number; lots: number; time: number; takerBuy: boolean };
 export type OpenOrder = { id: bigint; isBuy: boolean; price: number; lots: number };
-export type Activity = { id: number; ok: boolean; title: string; detail: string; url: string | null };
+export type Activity = {
+  id: number;
+  ok: boolean;
+  title: string;
+  detail: string;
+  url: string | null;
+};
 
 export type Recap = {
   session: number;
@@ -109,7 +122,8 @@ function reason(err: unknown): string {
 }
 
 const ERROR_TEXT: Record<string, string> = {
-  MarketClosed: "Minting is off while the market is closed. You can still buy and sell on the book.",
+  MarketClosed:
+    "Minting is off while the market is closed. You can still buy and sell on the book.",
   MarketOpen: "Calls open when the market closes.",
   BadCall: "That call is too far from the close. Try a price between half and double it.",
   NotOwner: "Only the wallet that placed this order can cancel it.",
@@ -123,7 +137,8 @@ const ERROR_TEXT: Record<string, string> = {
   TooFarMove: "That price is more than 15% from the last one.",
 };
 
-const errBps = (cents: number, open: number) => (open ? Math.round((Math.abs(cents - open) * 10_000) / open) : 0);
+const errBps = (cents: number, open: number) =>
+  open ? Math.round((Math.abs(cents - open) * 10_000) / open) : 0;
 
 export const useMarket = create<Market>((set, get) => {
   const log = (a: Omit<Activity, "id">) =>
@@ -133,8 +148,15 @@ export const useMarket = create<Market>((set, get) => {
   async function send(
     label: string,
     title: string,
-    request: { address: Address; abi: readonly unknown[]; functionName: string; args?: readonly unknown[] },
-    describe: (receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>) => string,
+    request: {
+      address: Address;
+      abi: readonly unknown[];
+      functionName: string;
+      args?: readonly unknown[];
+    },
+    describe: (
+      receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>,
+    ) => string,
   ): Promise<boolean> {
     const { wallet, account } = get();
     if (!wallet || !account) {
@@ -147,7 +169,12 @@ export const useMarket = create<Market>((set, get) => {
       const { request: sim } = await publicClient.simulateContract(req as never);
       const gas = await publicClient.estimateContractGas(req as never);
       // Monad bills the gas limit, not gas used: keep the limit tight.
-      const write = { ...(sim as Record<string, unknown>), gas: (gas * 115n) / 100n, chain, account };
+      const write = {
+        ...(sim as Record<string, unknown>),
+        gas: (gas * 115n) / 100n,
+        chain,
+        account,
+      };
       const hash: Hash = await wallet.writeContract(write as never);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Transaction reverted.");
@@ -166,7 +193,12 @@ export const useMarket = create<Market>((set, get) => {
   }
 
   /** Only needed if the contracts aren't marked trusted (older deploys). */
-  async function ensureAllowance(token: Address, abi: typeof MockUSDCAbi | typeof StockTokenAbi, spender: Address, need: bigint) {
+  async function ensureAllowance(
+    token: Address,
+    abi: typeof MockUSDCAbi | typeof StockTokenAbi,
+    spender: Address,
+    need: bigint,
+  ) {
     const { account } = get();
     if (!account) return true;
     const current = (await publicClient.readContract({
@@ -176,15 +208,24 @@ export const useMarket = create<Market>((set, get) => {
       args: [account, spender],
     })) as bigint;
     if (current >= need) return true;
-    return send("Approving", "Approve", { address: token, abi, functionName: "approve", args: [spender, maxUint256] }, () => "Approved.");
+    return send(
+      "Approving",
+      "Approve",
+      { address: token, abi, functionName: "approve", args: [spender, maxUint256] },
+      () => "Approved.",
+    );
   }
 
   const fills = (receipt: { logs: readonly { address: string; topics: readonly unknown[] }[] }) => {
     const book = addresses!.book.toLowerCase();
-    return receipt.logs.filter((l) => l.address.toLowerCase() === book && l.topics.length === 4).length;
+    return receipt.logs.filter((l) => l.address.toLowerCase() === book && l.topics.length === 4)
+      .length;
   };
 
-  async function loadRecaps(sessionId: number, marketOpen: boolean): Promise<{ recaps: Recap[]; leaders: Leader[] }> {
+  async function loadRecaps(
+    sessionId: number,
+    marketOpen: boolean,
+  ): Promise<{ recaps: Recap[]; leaders: Leader[] }> {
     const a = addresses!;
     const last = marketOpen ? sessionId : sessionId - 1; // the current closed session is not settled yet
     if (recapCache && recapCache.sessionId === last) return recapCache;
@@ -193,8 +234,18 @@ export const useMarket = create<Market>((set, get) => {
     const rows = await Promise.all(
       ids.map(async (sid) => {
         const [r, c] = await Promise.all([
-          publicClient.readContract({ address: a.openCall, abi: OpenCallAbi, functionName: "results", args: [BigInt(sid)] }),
-          publicClient.readContract({ address: a.openCall, abi: OpenCallAbi, functionName: "calls", args: [BigInt(sid)] }),
+          publicClient.readContract({
+            address: a.openCall,
+            abi: OpenCallAbi,
+            functionName: "results",
+            args: [BigInt(sid)],
+          }),
+          publicClient.readContract({
+            address: a.openCall,
+            abi: OpenCallAbi,
+            functionName: "calls",
+            args: [BigInt(sid)],
+          }),
         ]);
         const [closeCents, bookCents, openCents, settledAt] = r;
         const [players, cents] = c;
@@ -215,7 +266,13 @@ export const useMarket = create<Market>((set, get) => {
     for (const r of recaps) {
       for (const c of r.calls) {
         const k = c.player.toLowerCase();
-        const cur = agg.get(k) ?? { player: c.player, sessions: 0, avgErrBps: 0, best: Infinity, sum: 0 };
+        const cur = agg.get(k) ?? {
+          player: c.player,
+          sessions: 0,
+          avgErrBps: 0,
+          best: Infinity,
+          sum: 0,
+        };
         cur.sessions += 1;
         cur.sum += c.errBps;
         cur.best = Math.min(cur.best, c.errBps);
@@ -248,9 +305,12 @@ export const useMarket = create<Market>((set, get) => {
           await get().refresh();
           return;
         }
-        const eth = (globalThis as { ethereum?: { request: (a: unknown) => Promise<unknown> } }).ethereum;
+        const eth = (globalThis as { ethereum?: { request: (a: unknown) => Promise<unknown> } })
+          .ethereum;
         if (!eth) {
-          set({ error: "No browser wallet found. Install MetaMask, Rabby or Phantom, then reload." });
+          set({
+            error: "No browser wallet found. Install MetaMask, Rabby or Phantom, then reload.",
+          });
           return;
         }
         const wallet = createWalletClient({ chain, transport: custom(eth) });
@@ -277,31 +337,46 @@ export const useMarket = create<Market>((set, get) => {
       try {
         const g = { address: a.gate, abi: PriceGateAbi } as const;
         const b = { address: a.book, abi: OrderBookAbi } as const;
-        const [latest, maxAge, label, marketOpen, sessionId, closeCents, closedAt, gateOwner] = await Promise.all([
-          publicClient.readContract({ ...g, functionName: "latest" }),
-          publicClient.readContract({ ...g, functionName: "maxAge" }),
-          publicClient.readContract({ ...g, functionName: "sourceLabel" }),
-          publicClient.readContract({ ...g, functionName: "marketOpen" }),
-          publicClient.readContract({ ...g, functionName: "sessionId" }),
-          publicClient.readContract({ ...g, functionName: "closeCents" }),
-          publicClient.readContract({ ...g, functionName: "closedAt" }),
-          publicClient.readContract({ ...g, functionName: "owner" }),
-        ]);
+        const [latest, maxAge, label, marketOpen, sessionId, closeCents, closedAt, gateOwner] =
+          await Promise.all([
+            publicClient.readContract({ ...g, functionName: "latest" }),
+            publicClient.readContract({ ...g, functionName: "maxAge" }),
+            publicClient.readContract({ ...g, functionName: "sourceLabel" }),
+            publicClient.readContract({ ...g, functionName: "marketOpen" }),
+            publicClient.readContract({ ...g, functionName: "sessionId" }),
+            publicClient.readContract({ ...g, functionName: "closeCents" }),
+            publicClient.readContract({ ...g, functionName: "closedAt" }),
+            publicClient.readContract({ ...g, functionName: "owner" }),
+          ]);
         const [bidDepth, askDepth, trades, lastPrice, mult, backing] = await Promise.all([
           publicClient.readContract({ ...b, functionName: "depth", args: [true, 8n] }),
           publicClient.readContract({ ...b, functionName: "depth", args: [false, 8n] }),
           publicClient.readContract({ ...b, functionName: "recentTrades", args: [40n] }),
           publicClient.readContract({ ...b, functionName: "lastPrice" }),
-          publicClient.readContract({ address: a.stock, abi: StockTokenAbi, functionName: "uiMultiplier" }),
+          publicClient.readContract({
+            address: a.stock,
+            abi: StockTokenAbi,
+            functionName: "uiMultiplier",
+          }),
           publicClient.readContract({ address: a.vault, abi: VaultAbi, functionName: "backing" }),
         ]);
         const sid = Number(sessionId);
         const [callCount, myCall, recapData] = await Promise.all([
           sid > 0
-            ? publicClient.readContract({ address: a.openCall, abi: OpenCallAbi, functionName: "playerCount", args: [sessionId] })
+            ? publicClient.readContract({
+                address: a.openCall,
+                abi: OpenCallAbi,
+                functionName: "playerCount",
+                args: [sessionId],
+              })
             : Promise.resolve(0n),
           sid > 0 && account
-            ? publicClient.readContract({ address: a.openCall, abi: OpenCallAbi, functionName: "callOf", args: [sessionId, account] })
+            ? publicClient.readContract({
+                address: a.openCall,
+                abi: OpenCallAbi,
+                functionName: "callOf",
+                args: [sessionId, account],
+              })
             : Promise.resolve(0),
           loadRecaps(sid, marketOpen),
         ]);
@@ -309,11 +384,30 @@ export const useMarket = create<Market>((set, get) => {
         let me: Snapshot["me"] = null;
         if (account) {
           const [usdc, stock, stockUI, mon, open] = await Promise.all([
-            publicClient.readContract({ address: a.usdc, abi: MockUSDCAbi, functionName: "balanceOf", args: [account] }),
-            publicClient.readContract({ address: a.stock, abi: StockTokenAbi, functionName: "balanceOf", args: [account] }),
-            publicClient.readContract({ address: a.stock, abi: StockTokenAbi, functionName: "balanceOfUI", args: [account] }),
+            publicClient.readContract({
+              address: a.usdc,
+              abi: MockUSDCAbi,
+              functionName: "balanceOf",
+              args: [account],
+            }),
+            publicClient.readContract({
+              address: a.stock,
+              abi: StockTokenAbi,
+              functionName: "balanceOf",
+              args: [account],
+            }),
+            publicClient.readContract({
+              address: a.stock,
+              abi: StockTokenAbi,
+              functionName: "balanceOfUI",
+              args: [account],
+            }),
             publicClient.getBalance({ address: account }),
-            publicClient.readContract({ ...b, functionName: "openOrdersOf", args: [account, 300n] }),
+            publicClient.readContract({
+              ...b,
+              functionName: "openOrdersOf",
+              args: [account, 300n],
+            }),
           ]);
           const [ids, list] = open;
           me = {
@@ -321,7 +415,12 @@ export const useMarket = create<Market>((set, get) => {
             stock,
             stockUI,
             mon,
-            orders: ids.map((id, i) => ({ id, isBuy: list[i].isBuy, price: list[i].price, lots: Number(list[i].lots) })),
+            orders: ids.map((id, i) => ({
+              id,
+              isBuy: list[i].isBuy,
+              price: list[i].price,
+              lots: Number(list[i].lots),
+            })),
           };
         }
 
@@ -337,10 +436,19 @@ export const useMarket = create<Market>((set, get) => {
             closedAt: Number(closedAt),
             bids: toLevels(bidDepth),
             asks: toLevels(askDepth),
-            trades: trades.map((t) => ({ price: t.price, lots: Number(t.lots), time: Number(t.time), takerBuy: t.takerBuy })),
+            trades: trades.map((t) => ({
+              price: t.price,
+              lots: Number(t.lots),
+              time: Number(t.time),
+              takerBuy: t.takerBuy,
+            })),
             lastPrice,
             multiplier: Number(mult) / 1e18,
-            backing: { held: Number(backing[0]) / 1e6, owed: Number(backing[1]) / 1e6, ratioBps: Number(backing[2]) },
+            backing: {
+              held: Number(backing[0]) / 1e6,
+              owed: Number(backing[1]) / 1e6,
+              ratioBps: Number(backing[2]),
+            },
             gateOwner,
             calls: { count: Number(callCount), mine: Number(myCall) },
             recaps: recapData.recaps,
@@ -354,7 +462,8 @@ export const useMarket = create<Market>((set, get) => {
       } catch (err) {
         // One dropped poll is normal on a public RPC; only speak up if it keeps failing.
         readFailures++;
-        if (readFailures >= 3) set({ error: `Can't reach ${chain.name} right now (${reason(err)}). Retrying…` });
+        if (readFailures >= 3)
+          set({ error: `Can't reach ${chain.name} right now (${reason(err)}). Retrying…` });
       } finally {
         refreshing = false;
       }
@@ -362,7 +471,12 @@ export const useMarket = create<Market>((set, get) => {
 
     async faucet() {
       if (!addresses) return;
-      await send("Getting test dollars", "Test dollars", { address: addresses.usdc, abi: MockUSDCAbi, functionName: "faucet" }, () => "You got 5,000 tUSDC.");
+      await send(
+        "Getting test dollars",
+        "Test dollars",
+        { address: addresses.usdc, abi: MockUSDCAbi, functionName: "faucet" },
+        () => "You got 5,000 tUSDC.",
+      );
     },
 
     async buyDollars(dollars) {
@@ -380,12 +494,25 @@ export const useMarket = create<Market>((set, get) => {
         set({ error: "That amount is too small. The minimum is 0.01 share." });
         return;
       }
-      await ensureAllowance(addresses.usdc, MockUSDCAbi, addresses.book, BigInt(limit) * lots * 100n);
+      await ensureAllowance(
+        addresses.usdc,
+        MockUSDCAbi,
+        addresses.book,
+        BigInt(limit) * lots * 100n,
+      );
       await send(
         "Buying",
         "Buy",
-        { address: addresses.book, abi: OrderBookAbi, functionName: "placeIOC", args: [true, limit, lots] },
-        (r) => (fills(r) ? `Bought tAAPL for about $${dollars.toFixed(2)}.` : "Nothing filled. No money was spent."),
+        {
+          address: addresses.book,
+          abi: OrderBookAbi,
+          functionName: "placeIOC",
+          args: [true, limit, lots],
+        },
+        (r) =>
+          fills(r)
+            ? `Bought tAAPL for about $${dollars.toFixed(2)}.`
+            : "Nothing filled. No money was spent.",
       );
     },
 
@@ -404,7 +531,12 @@ export const useMarket = create<Market>((set, get) => {
       await send(
         "Selling",
         "Sell",
-        { address: addresses.book, abi: OrderBookAbi, functionName: "placeIOC", args: [false, limit, lots] },
+        {
+          address: addresses.book,
+          abi: OrderBookAbi,
+          functionName: "placeIOC",
+          args: [false, limit, lots],
+        },
         (r) => (fills(r) ? `Sold ${shares} tAAPL.` : "Nothing filled. Your shares are back."),
       );
     },
@@ -413,14 +545,24 @@ export const useMarket = create<Market>((set, get) => {
       if (!addresses) return;
       const isBuy = side === "buy";
       const ok = isBuy
-        ? await ensureAllowance(addresses.usdc, MockUSDCAbi, addresses.book, BigInt(cents) * lots * 100n)
+        ? await ensureAllowance(
+            addresses.usdc,
+            MockUSDCAbi,
+            addresses.book,
+            BigInt(cents) * lots * 100n,
+          )
         : await ensureAllowance(addresses.stock, StockTokenAbi, addresses.book, lots * LOT);
       if (!ok) return;
       const shares = Number(lots) / 100;
       await send(
         isBuy ? "Placing buy" : "Placing sell",
         `Limit ${side}`,
-        { address: addresses.book, abi: OrderBookAbi, functionName: "placeLimit", args: [isBuy, cents, lots] },
+        {
+          address: addresses.book,
+          abi: OrderBookAbi,
+          functionName: "placeLimit",
+          args: [isBuy, cents, lots],
+        },
         (r) => {
           const n = fills(r);
           return n
@@ -432,24 +574,40 @@ export const useMarket = create<Market>((set, get) => {
 
     async cancel(id) {
       if (!addresses) return;
-      await send("Cancelling", "Cancel", { address: addresses.book, abi: OrderBookAbi, functionName: "cancel", args: [id] }, () => `Order #${id} cancelled. Funds returned.`);
+      await send(
+        "Cancelling",
+        "Cancel",
+        { address: addresses.book, abi: OrderBookAbi, functionName: "cancel", args: [id] },
+        () => `Order #${id} cancelled. Funds returned.`,
+      );
     },
 
     async mint(lots) {
       if (!addresses) return;
-      const [cost] = await publicClient.readContract({ address: addresses.vault, abi: VaultAbi, functionName: "quoteMint", args: [lots] });
+      const [cost] = await publicClient.readContract({
+        address: addresses.vault,
+        abi: VaultAbi,
+        functionName: "quoteMint",
+        args: [lots],
+      });
       if (!(await ensureAllowance(addresses.usdc, MockUSDCAbi, addresses.vault, cost))) return;
       await send(
         "Minting",
         "Mint",
         { address: addresses.vault, abi: VaultAbi, functionName: "mint", args: [lots] },
-        () => `Minted ${Number(lots) / 100} tAAPL at the official price for $${(Number(cost) / 1e6).toFixed(2)}.`,
+        () =>
+          `Minted ${Number(lots) / 100} tAAPL at the official price for $${(Number(cost) / 1e6).toFixed(2)}.`,
       );
     },
 
     async redeem(lots) {
       if (!addresses) return;
-      await send("Redeeming", "Redeem", { address: addresses.vault, abi: VaultAbi, functionName: "redeem", args: [lots] }, () => `Redeemed ${Number(lots) / 100} tAAPL.`);
+      await send(
+        "Redeeming",
+        "Redeem",
+        { address: addresses.vault, abi: VaultAbi, functionName: "redeem", args: [lots] },
+        () => `Redeemed ${Number(lots) / 100} tAAPL.`,
+      );
     },
 
     async callOpen(cents) {
@@ -458,18 +616,29 @@ export const useMarket = create<Market>((set, get) => {
         "Locking your call",
         "Call the open",
         { address: addresses.openCall, abi: OpenCallAbi, functionName: "callOpen", args: [cents] },
-        () => `You called the open at $${(cents / 100).toFixed(2)}. You can change it until the bell.`,
+        () =>
+          `You called the open at $${(cents / 100).toFixed(2)}. You can change it until the bell.`,
       );
     },
 
     async pushPrint(cents) {
       if (!addresses) return;
-      await send("Pushing price", "Keeper push", { address: addresses.gate, abi: PriceGateAbi, functionName: "push", args: [cents] }, () => `Official price set to $${(cents / 100).toFixed(2)}.`);
+      await send(
+        "Pushing price",
+        "Keeper push",
+        { address: addresses.gate, abi: PriceGateAbi, functionName: "push", args: [cents] },
+        () => `Official price set to $${(cents / 100).toFixed(2)}.`,
+      );
     },
 
     async closeMarket() {
       if (!addresses) return;
-      await send("Closing", "Closing bell", { address: addresses.gate, abi: PriceGateAbi, functionName: "close" }, () => "Market closed. The price is frozen.");
+      await send(
+        "Closing",
+        "Closing bell",
+        { address: addresses.gate, abi: PriceGateAbi, functionName: "close" },
+        () => "Market closed. The price is frozen.",
+      );
     },
   };
 });

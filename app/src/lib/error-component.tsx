@@ -11,8 +11,8 @@ function errorMessage(error: unknown): string {
 export function AppErrorComponent({ error }: ErrorComponentProps) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg px-6 text-center text-fg">
-      <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-muted">{errorMessage(error)}</p>
+      <h1 className="heading-6">Something went wrong</h1>
+      <p className="body-6 max-w-md break-words text-muted">{errorMessage(error)}</p>
     </main>
   );
 }
