@@ -40,7 +40,7 @@ export function Desk() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Nadbell</h1>
-          <p className="mt-1 text-sm text-muted">The price freezes at the close. This market doesn't.</p>
+          <p className="mt-1 text-sm text-muted">A mock tAAPL market on {chain.name} that keeps trading after the oracle freezes at the close.</p>
         </div>
         {account ? (
           <span className="rounded-full border border-border px-4 py-2 font-mono text-sm">

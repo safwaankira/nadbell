@@ -20,7 +20,7 @@ export function Onboarding({ snap, account, busy }: { snap: Snapshot | null; acc
     {
       done: hasMon,
       title: "Get test MON for gas",
-      body: "Free from the Monad faucet. A little covers hundreds of trades.",
+      body: "Free from the Monad faucet.",
       action: (
         <a className="flex h-11 items-center rounded-lg border border-border px-4 text-sm" href={MON_FAUCET} target="_blank" rel="noreferrer">
           Open faucet

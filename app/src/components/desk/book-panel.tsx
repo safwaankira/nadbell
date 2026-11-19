@@ -11,7 +11,6 @@ export function BookPanel({ snap, now }: { snap: Snapshot | null; now: number })
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-sm font-medium">Order book</h2>
-      <p className="mt-1 text-xs text-muted">Sellers on top, buyers below. Shares at each price.</p>
       <div className="mt-2">
         <BookRows rows={asks} max={max} tone="down" />
         <div className="my-1 border-t border-border" />
