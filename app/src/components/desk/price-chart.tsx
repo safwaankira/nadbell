@@ -52,7 +52,11 @@ export function PriceChart({
         ) : null}
       </div>
       <div className="mt-4 min-h-56 flex-1">
-        {on && snap ? (
+        {snap && snap.trades.length < 3 ? (
+          <div className="flex h-full min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 text-center">
+            <p className="title-4">Not enough trades to draw a line</p>
+          </div>
+        ) : on && snap ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid stroke={GRID} vertical={false} />

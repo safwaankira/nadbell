@@ -69,7 +69,7 @@ export function StatusBanner({
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border bg-surface p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-h-6 flex-wrap items-center justify-between gap-2">
             <p className="title-4 text-muted">{open ? "Official price" : "Oracle price"}</p>
             {feed ? (
               <span
@@ -91,7 +91,7 @@ export function StatusBanner({
         </div>
 
         <div className="rounded-2xl border border-primary/60 bg-surface p-6">
-          <p className="title-4 text-muted">Nadbell price</p>
+          <p className="title-4 flex min-h-6 items-center text-muted">Nadbell price</p>
           <p className="mt-3 font-mono text-5xl leading-none font-medium tracking-tight">
             {snap ? usd(mid) : "…"}
           </p>

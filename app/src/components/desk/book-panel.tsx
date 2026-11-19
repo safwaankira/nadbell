@@ -49,7 +49,7 @@ export function BookPanel({ snap, now }: { snap: Snapshot | null; now: number })
 }
 
 export function BookRows({ rows, max, tone }: { rows: Level[]; max: number; tone: "up" | "down" }) {
-  const bar = tone === "up" ? "bg-up/15" : "bg-down/15";
+  const bar = tone === "up" ? "bg-up/10" : "bg-down/10";
   return (
     <ul className="body-6 font-mono">
       {rows.map(({ price, lots }) => (
