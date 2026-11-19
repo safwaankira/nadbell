@@ -7,3 +7,4 @@ app/.vercel/
 app/.tanstack/
 .env
 keeper/node_modules/
+.DS_Store
