@@ -1,0 +1,48 @@
+# Publishes the deployed contracts' source on MonadVision (via Monad's Sourcify) so anyone can
+# read what runs onchain. Safe to re-run: already-verified contracts are reported and skipped.
+name: verify
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/verify.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  sourcify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge build
+      - name: Verify every deployed contract
+        run: |
+          set -u
+          d=deployments/10143.json
+          fail=0
+          for pair in book:OrderBook gate:PriceGate openCall:OpenCall vault:Vault stock:StockToken usdc:MockUSDC; do
+            key=${pair%%:*}; name=${pair##*:}
+            addr=$(jq -r ".$key" "$d")
+            echo "::group::$name $addr"
+            if ! forge verify-contract "$addr" "src/$name.sol:$name" \
+                 --chain 10143 \
+                 --verifier sourcify \
+                 --verifier-url https://sourcify-api-monad.blockvision.org; then
+              echo "::warning::$name ($addr) did not verify"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail

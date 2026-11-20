@@ -14,7 +14,11 @@ function feedStatus(snap: Snapshot, now: number): Feed {
   }
   // NYSE is trading but the keeper hasn't relayed a price since the close.
   if (isRegularOpen(new Date(now))) return { tone: "late", text: "Waiting for the keeper" };
-  return { tone: "frozen", text: "Frozen at the close" };
+  // How long the oracle has been frozen is the number that makes the gap mean something.
+  return {
+    tone: "frozen",
+    text: snap.closedAt ? `Frozen for ${ago(now / 1000 - snap.closedAt)}` : "Frozen at the close",
+  };
 }
 
 const BADGE: Record<Feed["tone"], string> = {
