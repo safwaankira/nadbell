@@ -1,10 +1,53 @@
 # Nadbell
 
-**The price freezes at the close. This market doesn't.**
+**When NYSE closes, the price of a tokenized stock freezes until the next open. Nadbell keeps a market for it running in between.**
 
-Nadbell is a 24/7 mock tokenized-stock market on Monad testnet. While NYSE is open, a keeper relays the real AAPL price and the market tracks it. After the bell the official price freezes, but Nadbell's onchain order book keeps trading, so you can see the weekend price form, call where Monday will open, and get scored against the real open.
+Every weekend the AAPL price is frozen for about 65 hours. Nadbell is a mock tokenized-stock (RWA) market on Monad testnet whose onchain order book trades 24/7. While NYSE is open it tracks the real price. After the bell its trades show where AAPL might reopen, and anyone can call the open for free and get scored against the real one.
+
+**Live:** https://nadbell.vercel.app · **Contracts:** verified on [MonadVision](https://testnet.monadvision.com/address/0x8eb6048E7084eFd8a437FF1911f2F0f886904145?tab=Contract) · **CI:** `forge test` (26 tests incl. a fuzzed no-cross check) + app tests on every push
+
+![Nadbell: the frozen oracle price next to the price the book is trading at](docs/screenshot.jpg)
 
 > Testnet demo only. tAAPL and tUSDC are mock tokens with no value. They are not issued by or affiliated with Apple, Nasdaq, Alpaca, Robinhood, Kraken, Dinari, Ondo or Anchored, and represent no ownership, claim or economic right in any security. Prices come from Alpaca's free IEX feed, relayed by a single keeper. Not investment advice and not an offer of securities. Do not deploy to mainnet.
+
+## Evidence
+
+Every claim here points to code, a test or a transaction.
+
+| Claim | Proof |
+|---|---|
+| The order book is fully onchain and can never be left crossed | [`OrderBook.sol#L100`](contracts/src/OrderBook.sol#L100) (`placeIOC`), fill cap and refund at [`#L114-L128`](contracts/src/OrderBook.sol#L114-L128); [`testFuzz_EscrowAndNoCross`](contracts/test/Nadbell.t.sol#L423) |
+| The market closes and reopens onchain | [`PriceGate.sol#L118`](contracts/src/PriceGate.sol#L118) `close()`; a real [close tx](https://testnet.monadvision.com/tx/0x0da399eb9b10a73e65341c3b0a773336812c2a6da6a651c768aa1fe1e3c4e718) and [price push](https://testnet.monadvision.com/tx/0xd85bf38515ca43ec255b39e5ca092089e485ab8ca1c58bf0fc78a3f3fc8cd2f6) |
+| A bad price can't jump more than 15% in one push | [`PriceGate.sol#L149`](contracts/src/PriceGate.sol#L149); [`test_KeeperRoleAndMoveGuard`](contracts/test/Nadbell.t.sol#L366) |
+| Calls are settled against the real open at the reopen | [`OpenCall.sol#L57`](contracts/src/OpenCall.sol#L57) `onReopen`; [`test_CloseFreezesAndReopenSettlesCalls`](contracts/test/Nadbell.t.sol#L298); a broken listener never blocks the reopen ([`test_BrokenListenerNeverBlocksReopen`](contracts/test/Nadbell.t.sol#L359)) |
+| Minting stops when the price is stale; the book keeps trading | [`test_MintRejectedWhenPrintIsStale`](contracts/test/Nadbell.t.sol#L74), [`test_BookStillTradesWhenPrintIsStale`](contracts/test/Nadbell.t.sol#L85) |
+| The app and the keeper agree on NYSE hours | [`nyse.test.ts`](app/src/lib/nyse.test.ts) compares both calendars every 30 minutes through 2026–27, incl. holidays and early closes |
+| It runs | Since 17 Oct 2026 the [order book](https://testnet.monadvision.com/address/0x8eb6048E7084eFd8a437FF1911f2F0f886904145) has 679 txs and the [PriceGate](https://testnet.monadvision.com/address/0x644172e1C27D20513De62D2887F8631b05965C4B) 158 (counts on 20 Nov). Nearly all come from the keeper and its maker bot; user trades and calls are still few. |
+
+## Trusted keys
+
+One wallet ([`0xE87B…9842`](https://testnet.monadvision.com/address/0xE87BF5a41C3Cf6e535C7C5e8E83feB293bbF9842)) deployed everything and is both owner and keeper. What it can do:
+
+| Power | Where | Why it exists |
+|---|---|---|
+| Push the price and close the market | [`PriceGate.sol#L108`](contracts/src/PriceGate.sol#L108), [`#L118`](contracts/src/PriceGate.sol#L118) | There's no free US-equity oracle on Monad testnet (see below). |
+| Force a price past the 15% guard, change the guard and max age | [`#L113`](contracts/src/PriceGate.sol#L113), [`#L87`](contracts/src/PriceGate.sol#L87) | Recover after a real gap (earnings, splits). |
+| Mark a spender as trusted, so it can move holders' tUSDC/tAAPL without `approve()` | [`MockUSDC.sol#L25`](contracts/src/MockUSDC.sol#L25), [`StockToken.sol#L58`](contracts/src/StockToken.sol#L58) | One-click trading on testnet. Only the vault and the book are trusted ([`Deploy.s.sol#L61-L63`](contracts/script/Deploy.s.sol#L61-L63)), but the owner could add another. That's acceptable only because the tokens are worthless mocks. |
+| Pause tAAPL, block an address, set the dividend/split multiplier | [`StockToken.sol#L48-L58`](contracts/src/StockToken.sol#L48-L58), [`#L100`](contracts/src/StockToken.sol#L100) | Mirrors the controls a real stock-token issuer has. |
+
+The order book itself has no admin functions. But through the trusted-spender switch the token owner could move any holder's mock tokens, the book's escrow included. With real-value tokens this design would be unacceptable; use plain `approve()` there.
+
+## Why a blockchain
+
+The weekend price is only worth something if nobody can quietly edit it. Every order, fill and call here is a public transaction, the scoring at the reopen happens in a contract nobody can change after the fact, and anyone can trade or build on the book without asking. A database run by us could fake all three.
+
+## How it was built
+
+- **13 Oct 2026:** UI prototype made with Grok's app builder.
+- **13–17 Oct:** contracts, tests, keeper and the trading UI. The first commit (17 Oct) is a single import of 43,699 lines; about 40,500 of them are lockfiles, generated ABIs and the app builder's scaffolding. The project's own code was about 3,100 lines.
+- **28 Oct:** the keeper wallet ran out of MON and the keeper failed. Fixed so the maker bot skips its quotes before the wallet runs dry.
+- **19 Nov:** removed the app builder's leftover layer (auth, database, PWA plugin, 46 of 71 packages, a script from grok.com injected into every page), split the UI into one-job files, added CI and security headers, then a redesign around the oracle-vs-market gap.
+- **20 Nov:** verified all six contracts on MonadVision ([`verify.yml`](.github/workflows/verify.yml)), added this evidence section, a 404 page and calendar tests.
 
 ## What a user does
 
@@ -37,7 +80,8 @@ Why a keeper and not an oracle: as of October 2026 there is no free US-equity or
 contracts/          Foundry project (src, test, script)
 keeper/             keeper + maker bot (Node, viem)
 app/                web app (TanStack Start + React + viem); UI in src/components/desk/, chain reads in src/lib/chain/
-.github/workflows/  keeper.yml: the keeper schedule · ci.yml: contract, app and keeper checks on every push
+.github/workflows/  keeper.yml: the keeper schedule · ci.yml: contract, app and keeper checks on every push · verify.yml: publishes contract source on MonadVision
+docs/               screenshot used in this README
 ```
 
 ## Setup
